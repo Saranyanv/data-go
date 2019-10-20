@@ -1,0 +1,235 @@
+/* SCORING */
+
+title 'Predict 411 Winter 2018 Sec 58 Unit 2 Assignment 1 - Scoring';
+
+%let PATH = /home/saranyanvasudeva0/my_courses/donald.wedding/c_8888/PRED411/UNIT02/HW;
+%let NAME = mydata;
+libname &NAME. "&PATH." access=readonly;
+
+%let INFILE = &NAME..logit_insurance_test;
+%let STGFILE_TEST = LOGIT_INSURANCE_test;
+
+
+DATA &STGFILE_TEST.;
+SET &INFILE.;
+CAR_AGE_IMP=CAR_AGE;
+CAR_AGE_IMP_IND=0;
+HOME_VAL_IMP=HOME_VAL;
+HOME_VAL_IMP_IND=0;
+INCOME_IMP=INCOME;
+INCOME_IMP_IND=0;
+YOJ_IMP=YOJ;
+YOJ_IMP_IND=0;
+AGE_IMP=AGE;
+AGE_IMP_IND=0;
+JOB_IMP=JOB;
+JOB_IMP_IND=0;
+CAR_TYPE_Minivan=0;
+CAR_TYPE_Panel=0;
+CAR_TYPE_Pickup=0;
+CAR_TYPE_Sports=0;
+CAR_TYPE_SUV=0;
+EDUCATION_Bachelors=0;
+EDUCATION_Masters=0;
+EDUCATION_PhD=0;
+EDUCATION_High_School=0;
+EDUCATION_zHigh_School=0;
+JOB_IMP_Home_Maker=0;
+JOB_IMP_Masters=0;
+JOB_IMP_Lawyer=0;
+JOB_IMP_Manager=0;
+JOB_IMP_Professional=0;
+JOB_IMP_Student=0;
+JOB_IMP_Blue_Collar=0;
+JOB_IMP_Clerical=0;
+JOB_IMP_Doctor=0;
+
+IF MISSING(AGE) THEN DO;
+AGE_IMP_IND=1;
+IF HOMEKIDS >= 0.5 AND KIDSDRIV < 0.5 AND YOJ < 14 AND HOME_VAL < 160000 THEN AGE_IMP=35;
+ELSE IF HOMEKIDS >= 0.5 AND KIDSDRIV < 0.5 AND YOJ < 14 AND HOME_VAL >= 160000 THEN AGE_IMP=39;
+ELSE IF HOMEKIDS >= 0.5 AND KIDSDRIV < 0.5 AND YOJ >= 14 THEN AGE_IMP=42;
+ELSE IF HOMEKIDS >= 0.5 AND KIDSDRIV >= 0.5 THEN AGE_IMP=43;
+ELSE IF HOMEKIDS < 0.5 AND YOJ < 12 AND JOB IN ('CLERICAL','PROFESSIONAL','STUDENT','z_Blue Collar') AND HOME_VAL < 153000 THEN AGE_IMP=44;
+ELSE IF HOMEKIDS < 0.5 AND YOJ < 12 AND JOB IN ('CLERICAL','PROFESSIONAL','STUDENT','z_Blue Collar') AND HOME_VAL >= 153000 THEN AGE_IMP=47;
+ELSE IF HOMEKIDS < 0.5 AND YOJ < 12 AND JOB NOT IN ('CLERICAL','PROFESSIONAL','STUDENT','z_Blue Collar') THEN AGE_IMP=48;
+ELSE IF HOMEKIDS < 0.5 AND YOJ >= 12 THEN AGE_IMP=51;
+END;
+
+IF MISSING(CAR_AGE) THEN DO;
+CAR_AGE_IMP_IND=1;
+IF BLUEBOOK < 13000 THEN CAR_AGE_IMP=7.2;
+ELSE IF BLUEBOOK >= 13000 THEN CAR_AGE_IMP=9.2;
+END;
+
+IF MISSING(HOME_VAL) THEN DO;
+HOME_VAL_IMP_IND=1;
+IF MSTATUS='z_No' AND INCOME < 75000 THEN HOME_VAL_IMP=58000;
+ELSE IF MSTATUS='z_No' AND INCOME >= 75000 THEN HOME_VAL_IMP=130000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME < 21000 AND JOB = 'STUDENT' THEN HOME_VAL_IMP=19000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME < 21000 AND JOB NOT IN ('STUDENT') THEN HOME_VAL_IMP=104000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME < 64000 AND INCOME >= 21000 THEN HOME_VAL_IMP=174000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME >= 64000 AND INCOME < 91000 THEN HOME_VAL_IMP=242000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME < 130000 AND INCOME >= 91000 THEN HOME_VAL_IMP=305000;
+ELSE IF MSTATUS NOT IN ('z_No') AND INCOME >= 130000 THEN HOME_VAL_IMP=433000;
+END;
+
+IF MISSING(INCOME) THEN DO;
+INCOME_IMP_IND=1;
+IF JOB IN ('Home Maker', 'Student') THEN INCOME_IMP=9052;
+ELSE IF JOB='Clerical' THEN INCOME_IMP=34000;
+ELSE IF JOB NOT IN ('Clerical', 'Home Maker', 'Student') AND EDUCATION IN ('<High School', 'z_High School') THEN INCOME_IMP=52000;
+ELSE IF JOB NOT IN ('Clerical', 'Home Maker', 'Student') AND EDUCATION IN ('Bachelors', 'Masters') THEN INCOME_IMP=82000;
+ELSE IF JOB NOT IN ('Clerical', 'Home Maker', 'Student') AND EDUCATION NOT IN ('<High School', 'z_High School', 'Bachelors', 'Masters') THEN INCOME_IMP=131000;
+END;
+
+IF MISSING(JOB) THEN DO;
+JOB_IMP_IND=1;
+IF EDUCATION = 'PhD' THEN JOB_IMP='Doctor';
+ELSE IF EDUCATION = 'Masters' THEN JOB_IMP='Lawyer';
+ELSE IF EDUCATION NOT IN ('PhD', 'Masters') AND INCOME < 15000 THEN JOB_IMP='Student';
+ELSE IF EDUCATION NOT IN ('PhD', 'Masters') AND INCOME >= 15000 AND INCOME < 45000 THEN JOB_IMP='Clerical';
+ELSE IF EDUCATION NOT IN ('PhD', 'Masters') AND INCOME >= 45000 AND EDUCATION = 'Bachelors' THEN JOB_IMP='Professional';
+ELSE IF EDUCATION NOT IN ('PhD', 'Masters') AND INCOME >= 45000 AND EDUCATION <> 'Bachelors' THEN JOB_IMP='z_Blue Collar';
+END;
+
+IF MISSING(YOJ) THEN DO;
+YOJ_IMP_IND=1;
+IF INCOME < 2.5 THEN YOJ_IMP=0;
+ELSE IF INCOME > 2.5 AND AGE < 56 AND HOME_VAL < 25000 THEN YOJ_IMP=11;
+ELSE IF INCOME > 2.5 AND AGE < 56 AND HOME_VAL >= 25000 AND JOB IN ('Doctor', 'Home Maker', 'Manager', 'Professional') THEN YOJ_IMP=11;
+ELSE IF INCOME > 2.5 AND AGE < 56 AND HOME_VAL >= 25000 AND JOB NOT IN ('Doctor', 'Home Maker', 'Manager', 'Professional') THEN YOJ_IMP=12;
+ELSE IF INCOME > 2.5 AND AGE >= 56 THEN YOJ_IMP=13;
+END;
+
+IF HOME_VAL_IMP=0 THEN RENTED_HOME_FLAG=1;
+else RENTED_HOME_FLAG=0;
+
+if BLUEBOOK < 1500 then BLUEBOOK=1500;
+else if BLUEBOOK > 39090 then BLUEBOOK=39090;
+
+if INCOME_IMP > 214653 then INCOME_IMP=214653;
+
+if HOME_VAL_IMP > 497746 then HOME_VAL_IMP=497746;
+
+if TRAVTIME < 5 then TRAVTIME=5;
+else if TRAVTIME > 75.14 then TRAVTIME=75.14;
+
+if CAR_USE="Commercial" then CAR_USE_FLAG=1;
+else if CAR_USE="Private" then CAR_USE_FLAG=0;
+
+if EDUCATION="<High School" then EDUCATION_High_School=1;
+else if EDUCATION="z_High School" then EDUCATION_zHigh_School=1;
+else if EDUCATION="Bachelors" then EDUCATION_Bachelors=1;
+else if EDUCATION="Masters" then EDUCATION_Masters=1;
+else if EDUCATION="PhD" then EDUCATION_PhD=1;
+
+if JOB_IMP="Clerical" then JOB_IMP_Clerical=1;
+else if JOB_IMP="Doctor" then JOB_IMP_Doctor=1;
+else if JOB_IMP="Home Maker" then JOB_IMP_Home_Maker=1;
+else if JOB_IMP="Lawyer" then JOB_IMP_Lawyer=1;
+else if JOB_IMP="Manager" then JOB_IMP_Manager=1;
+else if JOB_IMP="Professional" then JOB_IMP_Professional=1;
+else if JOB_IMP="Student" then JOB_IMP_Student=1;
+else if JOB_IMP="z_Blue Collar" then JOB_IMP_Blue_Collar=1;
+
+
+if MSTATUS="Yes" then MSTATUS_FLAG=1;
+else if MSTATUS="z_No" then MSTATUS_FLAG=0;
+
+if PARENT1="Yes" then PARENT1_FLAG=1;
+else if PARENT1="No" then PARENT1_FLAG=0;
+
+if REVOKED="Yes" then REVOKED_FLAG=1;
+else if REVOKED="No" then REVOKED_FLAG=0;
+
+if SEX="M" then SEX_FLAG=1;
+else if SEX="z_F" then SEX_FLAG=0;
+
+if URBANICITY="Highly Urban/ Urban" then URBANICITY_FLAG=1;
+else if URBANICITY="z_Highly Rural/ Rural" then URBANICITY_FLAG=0;
+
+if RED_CAR="yes" then RED_CAR_FLAG=1;
+else if RED_CAR="no" then RED_CAR_FLAG=0;
+
+TARGET_FLAG = -1.5743 +
+				(AGE_IMP * -0.0011051940) +
+				(BLUEBOOK * -0.0000138107) +
+				(CAR_AGE_IMP * -0.0014270411) +
+				((CAR_TYPE IN ("Sports Car")) * 0.5851426443) +
+				((CAR_TYPE IN ("Van")) * 0.3467714564) +
+				((CAR_TYPE IN ("z_SUV")) * 0.4356501878) +
+				((CAR_TYPE IN ("Panel Truck")) * 0.3119926543) +
+				((CAR_TYPE IN ("Pickup")) * 0.3078089884) +
+				((CAR_TYPE IN ("Minivan")) * 0) +
+				((CAR_USE IN ("Commercial")) * 0.4347014968) +
+				((CAR_USE IN ("Private")) * 0) +
+				(CLM_FREQ * 0.1173718205) +
+				((EDUCATION IN ("Bachelors")) * -0.2526557152) +
+				((EDUCATION IN ("Masters")) * -0.2295715510) +
+				((EDUCATION IN ("PhD")) * -0.0867576252) +
+				((EDUCATION IN ("<High School")) * -0.0035556943) +
+				((EDUCATION IN ("z_High School")) * 0) +
+				(HOME_VAL_IMP * -0.0000009581) +
+				(RENTED_HOME_FLAG * 0.0156011249) +
+				((JOB_IMP IN ("z_Blue Collar")) * 0.0086992222) +
+				((JOB_IMP IN ("Clerical")) * 0.0936325973) +
+				((JOB_IMP IN ("Lawyer")) * -0.1088015623) +
+				((JOB_IMP IN ("Doctor")) * -0.4864380510) +
+				((JOB_IMP IN ("Home Maker")) * 0.0104541289) +
+				((JOB_IMP IN ("Manager")) * -0.4990799503) +
+				((JOB_IMP IN ("Professional")) * -0.0781899221) +
+				((JOB_IMP IN ("Student")) * 0) +
+				(KIDSDRIV * 0.2425882483) +
+				((MSTATUS IN ("z_No")) * 0.2204929091) +
+				((MSTATUS IN ("Yes")) * 0) +
+				(MVR_PTS * 0.0671879492) +
+				(OLDCLAIM * -0.0000076437) +
+				((PARENT1 IN ("Yes")) * 0.2657025473) +
+				((PARENT1 IN ("No")) * 0) +
+				((REVOKED IN ("No")) * -0.5124799379) +
+				((REVOKED IN ("Yes")) * 0) +
+				((SEX IN ("z_F")) * -0.0450006281) +
+				((SEX IN ("M")) * 0) +
+				(TIF * -0.0320607483) +
+				(TRAVTIME * 0.0085661768) +
+				((URBANICITY IN ("Highly Urban/ Urban")) * 1.3089069852) +
+				((URBANICITY IN ("z_Highly Rural/ Rural")) * 0) +
+				(YOJ_IMP * -0.0085456672);
+
+TARGET_FLAG=probnorm(TARGET_FLAG);
+
+if CAR_TYPE in ("z_SUV") then 
+TARGET_AMT=	3863.94649 
+		+ 0.09891 * BLUEBOOK
+		+ 2048.25105 * EDUCATION_PhD
+		+ 1612.44433 * JOB_IMP_Lawyer;
+else if CAR_TYPE in ("Sports Car") then
+TARGET_AMT=	4607.71201
+		+ (0.12673 * BLUEBOOK)
+		+ (-142.93693 * CAR_AGE_IMP)
+		+ (4796.92257 * JOB_IMP_Professional);
+else if CAR_TYPE in ("Van","Minivan") then
+TARGET_AMT=	8625.25239
+		+ (-228.85655 * CAR_AGE_IMP)
+		+ (2238.03161 * CAR_USE_FLAG)
+		+ (2691.45839 * EDUCATION_Masters)
+		+ (2042.48420 * JOB_IMP_Professional)
+		+ (-2400.32556 * REVOKED_FLAG)
+		+ (-214.53016 * YOJ_IMP);
+else if CAR_TYPE in ("Panel Truck") then
+TARGET_AMT=	16034
+		+ (5531.28760 * EDUCATION_PhD)
+		+ (511.54692 * MVR_PTS)
+		+ (5812.53563 * PARENT1_FLAG)
+		+ (-11795 * URBANICITY_FLAG);
+else if CAR_TYPE in ("Pickup") then
+TARGET_AMT=	3461.39053
+		+ (214.85244 * MVR_PTS)
+		+ (136.59286 * YOJ_IMP);
+		
+if TARGET_AMT < 100 then TARGET_AMT=100;
+
+P_TARGET_AMT = TARGET_FLAG * TARGET_AMT;
+
+RUN;
