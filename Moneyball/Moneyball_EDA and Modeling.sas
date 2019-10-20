@@ -1,0 +1,452 @@
+title 'Predict 411 Winter 2018 Sec 58 Unit 1 Assignment 1';
+libname mydata 
+	'/home/saranyanvasudeva0/my_courses/donald.wedding/c_8888/PRED411/UNIT01/HW' 
+	access=readonly;
+
+data moneyball_stg0;
+	set mydata.moneyball;
+run;
+
+proc means data=moneyball_stg0 N Mean Median StdDev	Min	Max P5 P95 NMISS STACKODSOUTPUT;
+ods output Summary=moneyball_Out;
+run;
+
+proc sql noprint;                              
+ select Variable into :varlist separated by ' '
+ from moneyball_Out
+ where Variable not in ('INDEX','TARGET_WINS');
+quit;
+
+data moneyball_Wide / view=moneyball_Wide;     
+retain &varlist;
+set moneyball_stg0;
+obsNum = _N_;
+keep obsNum &varlist;
+run;
+
+proc transpose data=moneyball_Wide name=VarName
+out=moneyball_Long(rename=(Col1=_Value_) drop=_LABEL_);
+by obsnum;
+var TEAM_BATTING_H TEAM_BATTING_BB TEAM_BATTING_SO;
+run;
+
+title "Box Plots";
+proc sgplot data=moneyball_Long;
+   label _Value_ = "Standardized Value" VarName="Variable";
+   vbox _Value_ / category=VarName;
+*   xaxis discreteorder=data display=(nolabel);        /* respect ordering */
+run;
+
+
+DATA MONEYBALL_STG1;
+	SET MONEYBALL_STG0;
+	TEAM_BATTING_HBP_IMP_IND=0;
+	TEAM_BASERUN_CS_IMP_IND=0;
+	TEAM_FIELDING_DP_IMP_IND=0;
+	TEAM_PITCHING_SO_IMP_IND=0;
+
+	
+	IF MISSING(TEAM_BATTING_HBP) THEN TEAM_BATTING_HBP_IMP_IND=1;
+
+	IF MISSING(TEAM_BASERUN_CS) THEN DO;
+			TEAM_BASERUN_CS_IMP=49;
+			TEAM_BASERUN_CS_IMP_IND=1;
+			END;
+	ELSE TEAM_BASERUN_CS_IMP=TEAM_BASERUN_CS;
+	
+	IF MISSING(TEAM_FIELDING_DP) THEN DO;
+			TEAM_FIELDING_DP_IMP=149;
+			TEAM_FIELDING_DP_IMP_IND=1;
+			END;
+	ELSE TEAM_FIELDING_DP_IMP=TEAM_FIELDING_DP;
+	
+	IF MISSING(TEAM_PITCHING_SO) THEN DO;
+			TEAM_PITCHING_SO_IMP=813.5;
+			TEAM_PITCHING_SO_IMP_IND=1;
+			END;
+	ELSE TEAM_PITCHING_SO_IMP=TEAM_PITCHING_SO;
+						
+	TEAM_OBP_TIMESONBASE = TEAM_BATTING_H + TEAM_BATTING_BB;
+	TEAM_BATTING_1B = TEAM_BATTING_H - (TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR);
+	TEAM_TOTAL_BASES = TEAM_BATTING_1B  + (2*TEAM_BATTING_2B) + (3*TEAM_BATTING_3B) + (4*TEAM_BATTING_HR);
+	STRIKEOUT_TO_WALK_RATIO = TEAM_PITCHING_SO_IMP / TEAM_BATTING_BB;
+	
+RUN;
+
+proc sgplot data=moneyball_stg1;
+vbox TEAM_TOTAL_BASES / MISSING DISPLAYSTATS=(MEDIAN) SPREAD ;  
+yaxis VALUES=(0 to 210 by 10);
+run;
+
+proc corr data=MONEYBALL_STG1 pearson spearman rank outp=moneyball_corr_Out plots(MAXPOINTS=NONE)=matrix(HIST);
+var STRIKEOUT_TO_WALK_RATIO	TEAM_BASERUN_CS	TEAM_BASERUN_CS_IMP	TEAM_BASERUN_CS_IMP_IND	TEAM_BASERUN_SB	TEAM_BASERUN_SB_IMP	TEAM_BASERUN_SB_IMP_IND	TEAM_BATTING_1B	TEAM_BATTING_2B	TEAM_BATTING_3B	TEAM_BATTING_BB	TEAM_BATTING_H	TEAM_BATTING_HBP	TEAM_BATTING_HBP_IMP_IND	TEAM_BATTING_HR	TEAM_BATTING_SO	TEAM_BATTING_SO_IMP	TEAM_BATTING_SO_IMP_IND	TEAM_FIELDING_DP	TEAM_FIELDING_DP_IMP	TEAM_FIELDING_DP_IMP_IND	TEAM_FIELDING_E	TEAM_OBP_TIMESONBASE	TEAM_PITCHING_BB	TEAM_PITCHING_H	TEAM_PITCHING_HR	TEAM_PITCHING_SO	TEAM_PITCHING_SO_IMP	TEAM_PITCHING_SO_IMP_IND	TEAM_TOTAL_BASES;
+with TARGET_WINS;
+run;
+
+proc print data=moneyball_corr_Out;
+run;
+
+proc univariate normal plot data=MONEYBALL_STG1 ;
+var TARGET_WINS TEAM_OBP_TIMESONBASE TEAM_TOTAL_BASES TEAM_BATTING_H;
+*histogram TEAM_OBP_TIMESONBASE / normal;
+run;quit;
+
+
+
+data moneyball_stg2;
+set moneyball_stg1;
+* Categorical variables created for running Decision tree on Strikeouts by batters;
+if TEAM_PITCHING_BB >= 0 and TEAM_PITCHING_BB <= 280 then TEAM_PITCHING_BB_CLASS=1;
+else if TEAM_PITCHING_BB > 280 and TEAM_PITCHING_BB <= 500 then TEAM_PITCHING_BB_CLASS=2;
+else if TEAM_PITCHING_BB > 500 and TEAM_PITCHING_BB <= 820 then TEAM_PITCHING_BB_CLASS=3;
+else if TEAM_PITCHING_BB > 820 and TEAM_PITCHING_BB <= 2000 then TEAM_PITCHING_BB_CLASS=4;
+else if TEAM_PITCHING_BB > 2000 and TEAM_PITCHING_BB <= 3700 then TEAM_PITCHING_BB_CLASS=5;
+else TEAM_PITCHING_BB_CLASS=6;
+
+if TEAM_PITCHING_H >= 1137 and TEAM_PITCHING_H <= 1518 then TEAM_PITCHING_H_CLASS=1;
+else if TEAM_PITCHING_H > 1518 and TEAM_PITCHING_H <= 2050 then TEAM_PITCHING_H_CLASS=2;
+else if TEAM_PITCHING_H > 2050 and TEAM_PITCHING_H <= 7000 then TEAM_PITCHING_H_CLASS=3;
+else if TEAM_PITCHING_H > 7000 and TEAM_PITCHING_H <= 15000 then TEAM_PITCHING_H_CLASS=4;
+else if TEAM_PITCHING_H > 15000 then TEAM_PITCHING_H_CLASS=5;
+else TEAM_PITCHING_H_CLASS=6;
+
+if TEAM_PITCHING_HR >= 0 and TEAM_PITCHING_HR <= 107 then TEAM_PITCHING_HR_CLASS=1;
+else if TEAM_PITCHING_HR > 107 and TEAM_PITCHING_HR <= 310 then TEAM_PITCHING_HR_CLASS=2;
+else if TEAM_PITCHING_HR > 310 then TEAM_PITCHING_HR_CLASS=3;
+else TEAM_PITCHING_HR_CLASS=4;
+
+* Categorical variables created for running Decision tree on Stolen bases;
+if TEAM_BASERUN_CS_IMP >= 0 and TEAM_BASERUN_CS_IMP <= 50 then TEAM_BASERUN_CS_CLASS=1;
+else if TEAM_BASERUN_CS_IMP > 50 and TEAM_BASERUN_CS_IMP <= 100 then TEAM_BASERUN_CS_CLASS=2;
+else if TEAM_BASERUN_CS_IMP > 100 and TEAM_BASERUN_CS_IMP <= 150 then TEAM_BASERUN_CS_CLASS=3;
+else if TEAM_BASERUN_CS_IMP > 150 then TEAM_BASERUN_CS_CLASS=4;
+else TEAM_BASERUN_CS_CLASS=5;
+
+if TEAM_FIELDING_DP_IMP >= 0 and TEAM_FIELDING_DP_IMP <= 82 then TEAM_FIELDING_DP_CLASS=1;
+else if TEAM_FIELDING_DP_IMP > 82 and TEAM_FIELDING_DP_IMP <= 150 then TEAM_FIELDING_DP_CLASS=2;
+else if TEAM_FIELDING_DP_IMP > 150 and TEAM_FIELDING_DP_IMP <= 210 then TEAM_FIELDING_DP_CLASS=3;
+else if TEAM_FIELDING_DP_IMP > 210 then TEAM_FIELDING_DP_CLASS=4;
+else TEAM_FIELDING_DP_CLASS=5;
+
+run;
+
+
+ods graphics on;
+proc hpsplit data=moneyball_stg2 seed=123 /*MISSING=BRANCH*/ NODES=DETAIL /*ASSIGNMISSING=BRANCH*/ MAXBRANCH=30;
+   class TEAM_PITCHING_BB_CLASS TEAM_PITCHING_H_CLASS TEAM_PITCHING_HR_CLASS ;
+   model TEAM_BATTING_SO =
+      TEAM_PITCHING_BB_CLASS TEAM_PITCHING_H_CLASS TEAM_PITCHING_HR_CLASS ;
+      *prune costcomplexity(leaves=3);
+   output out=hpsplout_TEAM_BATTING_SO;
+run;
+ods graphics off;
+
+
+ods graphics on;
+proc hpsplit data=moneyball_stg2 seed=123 /*MISSING=BRANCH*/ NODES=DETAIL /*ASSIGNMISSING=BRANCH*/ MAXBRANCH=40;
+   class TEAM_BASERUN_CS_CLASS TEAM_FIELDING_DP_CLASS ;
+   model TEAM_BASERUN_SB =
+      TEAM_BASERUN_CS_CLASS TEAM_FIELDING_DP_CLASS ;
+      *prune costcomplexity(leaves=3);
+   output out=hpsplout_TEAM_BASERUN_SB;
+run;
+ods graphics off;
+
+proc sql;
+   select TEAM_PITCHING_BB_CLASS, TEAM_PITCHING_H_CLASS, TEAM_PITCHING_HR_CLASS, count(TARGET_WINS)
+      from moneyball_stg2
+      where TEAM_BATTING_SO is missing
+      group by TEAM_PITCHING_BB_CLASS, TEAM_PITCHING_H_CLASS, TEAM_PITCHING_HR_CLASS;
+      
+
+proc sql;
+   select TEAM_BASERUN_CS_CLASS, TEAM_FIELDING_DP_CLASS, count(TARGET_WINS)
+      from moneyball_stg2
+      where TEAM_BASERUN_SB is missing
+      group by TEAM_BASERUN_CS_CLASS, TEAM_FIELDING_DP_CLASS;
+      
+      
+proc print data=hpsplout_TEAM_BATTING_SO;
+run;
+
+
+data moneyball_stg3;
+	set moneyball_stg2;
+	*Overwrite previously created imputed variables with values from Decision tree;
+	TEAM_BATTING_SO_IMP=TEAM_BATTING_SO;
+	TEAM_BATTING_SO_IMP_IND=0;
+	TEAM_BASERUN_SB_IMP=TEAM_BASERUN_SB;
+	TEAM_BASERUN_SB_IMP_IND=0;
+
+	if missing (TEAM_BATTING_SO) and TEAM_PITCHING_BB_CLASS=2 and 
+		TEAM_PITCHING_H_CLASS=1 and TEAM_PITCHING_HR_CLASS=1 then
+			do;
+			TEAM_BATTING_SO_IMP=746.1;
+			TEAM_BATTING_SO_IMP_IND=1;
+		END;
+	else if missing (TEAM_BATTING_SO) and TEAM_PITCHING_BB_CLASS=2 and 
+		TEAM_PITCHING_H_CLASS=2 and TEAM_PITCHING_HR_CLASS=1 then
+			do;
+			TEAM_BATTING_SO_IMP=520.7;
+			TEAM_BATTING_SO_IMP_IND=1;
+		END;
+	else if missing (TEAM_BATTING_SO) and TEAM_PITCHING_BB_CLASS=3 and 
+		TEAM_PITCHING_H_CLASS=1 and TEAM_PITCHING_HR_CLASS=1 then
+			do;
+			TEAM_BATTING_SO_IMP=721.9;
+			TEAM_BATTING_SO_IMP_IND=1;
+		END;
+	else if missing (TEAM_BATTING_SO) and TEAM_PITCHING_BB_CLASS=3 and 
+		TEAM_PITCHING_H_CLASS=2 and TEAM_PITCHING_HR_CLASS=1 then
+			do;
+			TEAM_BATTING_SO_IMP=518.9;
+			TEAM_BATTING_SO_IMP_IND=1;
+		END;
+
+	if missing (TEAM_BASERUN_SB) and TEAM_BASERUN_CS_CLASS=1 and 
+		TEAM_FIELDING_DP_CLASS=2 then
+			do;
+			TEAM_BASERUN_SB_IMP=162.7;
+			TEAM_BASERUN_SB_IMP_IND=1;
+		END;
+	else if missing (TEAM_BASERUN_SB) and TEAM_BASERUN_CS_CLASS=1 and 
+		TEAM_FIELDING_DP_CLASS=1 then
+			do;
+			TEAM_BASERUN_SB_IMP=127.61;
+			TEAM_BASERUN_SB_IMP_IND=1;
+		END;
+run;
+
+proc contents data=MONEYBALL_STG3;
+run;
+
+proc corr data=MONEYBALL_STG3 pearson spearman rank outp=moneyball_corr_Out 
+		plots(MAXPOINTS=NONE)=matrix(HIST);
+	var TEAM_OBP_TIMESONBASE TEAM_TOTAL_BASES STRIKEOUT_TO_WALK_RATIO TEAM_BATTING_1B TEAM_BASERUN_SB_IMP TEAM_BATTING_SO_IMP TEAM_FIELDING_DP_IMP TEAM_BASERUN_CS_IMP TEAM_PITCHING_SO_IMP;
+	with TARGET_WINS;
+run;
+
+proc print data=moneyball_corr_Out;
+run;
+
+proc means data=MONEYBALL_STG3 N Mean Median StdDev Min Max P5 P95 NMISS 
+		STACKODSOUTPUT;
+run;
+
+proc sgplot data=MONEYBALL_STG3;
+	vbox TEAM_PITCHING_HR / MISSING DISPLAYSTATS=(MEDIAN) SPREAD;
+	yaxis VALUES=(0 to 350 by 10);
+run;
+
+proc sgplot data=MONEYBALL_STG3;
+  scatter y=TEAM_PITCHING_HR x=TARGET_WINS;
+run;
+
+proc sgplot data=MONEYBALL_STG3;
+	vbox TEAM_OBP_TIMESONBASE / MISSING DISPLAYSTATS=(MEDIAN) SPREAD;
+	yaxis VALUES=(500 to 3500 by 100);
+run;
+
+
+
+
+
+    
+data MONEYBALL_STG4;
+	set MONEYBALL_STG3;
+	if TEAM_BATTING_H < 1150 then TEAM_BATTING_H=1150;
+	else if TEAM_BATTING_H > 1950 then TEAM_BATTING_H=1950;
+	
+	if TEAM_BATTING_2B < 125 then TEAM_BATTING_2B=125;
+	else if TEAM_BATTING_2B > 375 then TEAM_BATTING_2B=375;
+	
+	if TEAM_BATTING_3B > 140 then TEAM_BATTING_3B=140;
+	
+	if TEAM_PITCHING_HR < 1 then TEAM_PITCHING_HR=1;
+	else if TEAM_PITCHING_HR > 300 then TEAM_PITCHING_HR=300;
+	
+	if TEAM_BATTING_BB < 180 then TEAM_BATTING_BB=180;
+	else if TEAM_BATTING_BB > 800 then TEAM_BATTING_BB=800;
+
+	if TEAM_BASERUN_CS_IMP < 15 then TEAM_BASERUN_CS_IMP=15;
+	else if TEAM_BASERUN_CS_IMP > 120 then TEAM_BASERUN_CS_IMP=120;
+
+	if TEAM_BASERUN_SB_IMP < 0 then TEAM_BASERUN_SB_IMP=0;
+	else if TEAM_BASERUN_SB_IMP > 360 then TEAM_BASERUN_SB_IMP=360;
+
+	if TEAM_PITCHING_BB < 220 then TEAM_PITCHING_BB=0;
+	else if TEAM_PITCHING_BB > 950 then TEAM_PITCHING_BB=950;
+
+	if TEAM_FIELDING_E < 65 then TEAM_FIELDING_E=65;
+	else if TEAM_FIELDING_E > 1050 then TEAM_FIELDING_E=1050;
+	
+	log_TEAM_PITCHING_HR=log(TEAM_PITCHING_HR);
+	log_TEAM_BATTING_HR=log(TEAM_BATTING_HR);
+	
+	if missing(log_TEAM_BATTING_HR) then log_TEAM_BATTING_HR=0;
+	
+	log_TEAM_BASERUN_SB_IMP=log(TEAM_BASERUN_SB_IMP);
+	
+	if missing(log_TEAM_BASERUN_SB_IMP) then log_TEAM_BASERUN_SB_IMP=0;
+		
+	log_TEAM_FIELDING_E=log(TEAM_FIELDING_E);
+	TEAM_OBP_TIMESONBASE = TEAM_BATTING_H + TEAM_BATTING_BB;
+run;
+
+
+proc reg data=MONEYBALL_STG4 PLOTS=(DIAGNOSTICS(UNPACK) RESIDUALBYPREDICTED QQPLOT OBSERVEDBYPREDICTED) outest=model1_1;
+	model TARGET_WINS=TEAM_OBP_TIMESONBASE	/ adjrsq aic bic mse rmse cp vif influence;
+	output out=moneyball_out1
+	p=PREDICT_Winshat_Model1
+	r=RESID_Winshat_Model1
+	RSTUDENT=RSTUDENT_Wins_Model1
+	COOKD=COOKD_Wins_Model1;
+	run;
+	
+proc format;
+value rstudent_sfmt
+3 - high = '00: more than 3'
+2 -< 3 = '01: 2 to 3'
+1 -< 2 = '02: 1 to 2'
+0 -< 1 = '03: 0 to 1'
+-1 -< 0 = '04: -1 to 0'
+-2 -< -1 = '05: -2 to -1'
+-3 -< -2 = '06: -3 to -2'
+low -< -3 = '08: Less than -3'
+;
+run;
+
+data moneyball_out2;
+set moneyball_out1;
+format Rstudent_Range $50.;
+format CookD_Range $50.;
+Rstudent_Range = put(RSTUDENT_Wins_Model1,rstudent_sfmt.);
+if COOKD_Wins_Model1 > (4/2276) then CookD_Range='01: CookD Potential outlier';
+else CookD_Range='02: Not an outlier';
+run;
+
+data moneyball_out3;
+set moneyball_out2;
+where CookD_Range <> '01: CookD Potential outlier' 
+AND Rstudent_Range <> '00: more than 3'
+AND Rstudent_Range <> '08: Less than -3';
+run;
+
+/* Model 1 */
+proc reg data=moneyball_out3 PLOTS=(DIAGNOSTICS(UNPACK) RESIDUALBYPREDICTED QQPLOT OBSERVEDBYPREDICTED) outest=model1_1;
+	model TARGET_WINS=TEAM_OBP_TIMESONBASE	/ adjrsq aic bic mse rmse cp vif influence;
+	run;
+
+/* Model 1.1 */
+proc reg data=moneyball_out3 PLOTS=(DIAGNOSTICS(UNPACK) RESIDUALBYPREDICTED QQPLOT OBSERVEDBYPREDICTED) outest=model1_1;
+model TARGET_WINS=TEAM_TOTAL_BASES TEAM_BATTING_HBP_IMP_IND / adjrsq aic bic mse rmse cp vif influence;
+run;
+
+
+proc print data=model1_1;
+run;
+
+/* Model 2 Forward Selection*/
+proc reg data=MONEYBALL_STG4 outest=forward_out1;
+model TARGET_WINS=TEAM_BATTING_1B TEAM_BATTING_2B TEAM_BATTING_3B TEAM_BATTING_HR TEAM_BATTING_BB TEAM_BATTING_HBP_IMP_IND TEAM_BATTING_SO_IMP TEAM_BATTING_SO_IMP_IND TEAM_BASERUN_SB_IMP TEAM_BASERUN_SB_IMP_IND TEAM_BASERUN_CS_IMP TEAM_BASERUN_CS_IMP_IND TEAM_FIELDING_E TEAM_FIELDING_DP_IMP TEAM_FIELDING_DP_IMP_IND TEAM_PITCHING_BB TEAM_PITCHING_H TEAM_PITCHING_HR TEAM_PITCHING_SO_IMP TEAM_PITCHING_SO_IMP_IND
+/ selection=forward slentry=0.1 adjrsq aic bic mse rmse cp vif;
+output out=forward_out2
+ PREDICTED=PREDICT_MODEL2
+ RESIDUAL=RESID_MODEL2
+ RSTUDENT=RSTUDENT_MODEL2
+ COOKD=COOKD_Wins_MODEL2;
+run;
+
+
+data forward_out2_1;
+set forward_out2;
+format Rstudent_Range $50.;
+format CookD_Range $50.;
+Rstudent_Range = put(RSTUDENT_MODEL2,rstudent_sfmt.);
+if COOKD_Wins_MODEL2 > (4/2276) then CookD_Range='01: CookD Potential outlier';
+else CookD_Range='02: Not an outlier';
+run;
+
+data forward_out2_2;
+set forward_out2_1;
+where CookD_Range <> '01: CookD Potential outlier' 
+AND Rstudent_Range <> '00: more than 3'
+AND Rstudent_Range <> '08: Less than -3';
+run;
+
+/* Model 2 Forward Selection*/
+proc reg data=forward_out2_2 outest=forward_out1;
+model TARGET_WINS=TEAM_BATTING_1B TEAM_BATTING_2B TEAM_BATTING_3B log_TEAM_BATTING_HR TEAM_BATTING_BB TEAM_BATTING_HBP_IMP_IND TEAM_BATTING_SO_IMP TEAM_BATTING_SO_IMP_IND TEAM_BASERUN_SB_IMP TEAM_BASERUN_SB_IMP_IND TEAM_BASERUN_CS_IMP TEAM_BASERUN_CS_IMP_IND log_TEAM_FIELDING_E TEAM_FIELDING_DP_IMP TEAM_FIELDING_DP_IMP_IND TEAM_PITCHING_BB TEAM_PITCHING_H log_TEAM_PITCHING_HR TEAM_PITCHING_SO_IMP TEAM_PITCHING_SO_IMP_IND
+/ selection=forward slentry=0.1 adjrsq aic bic mse rmse cp vif;
+output out=forward_out2
+ PREDICTED=PREDICT_MODEL2
+ RESIDUAL=RESID_MODEL2
+ RSTUDENT=RSTUDENT_MODEL2
+ COOKD=COOKD_Wins_MODEL2;
+run;
+
+
+/* Model 3 Stepwise Selection*/
+proc reg data=forward_out2_2 outest=stepwise_out1;
+model TARGET_WINS=TEAM_BATTING_1B TEAM_BATTING_2B TEAM_BATTING_3B log_TEAM_BATTING_HR TEAM_BATTING_BB TEAM_BATTING_HBP_IMP_IND TEAM_BATTING_SO_IMP TEAM_BATTING_SO_IMP_IND TEAM_BASERUN_SB_IMP TEAM_BASERUN_SB_IMP_IND TEAM_BASERUN_CS_IMP TEAM_BASERUN_CS_IMP_IND log_TEAM_FIELDING_E TEAM_FIELDING_DP_IMP TEAM_FIELDING_DP_IMP_IND TEAM_PITCHING_BB TEAM_PITCHING_H TEAM_PITCHING_SO_IMP TEAM_PITCHING_SO_IMP_IND
+/ selection=stepwise slentry=0.1 adjrsq aic bic mse rmse cp vif;
+output out=stepwised_out2
+ PREDICTED=PREDICT_MODEL3
+ RESIDUAL=RESID_MODEL3
+ RSTUDENT=RSTUDENT_MODEL3
+ COOKD=COOKD_Wins_MODEL3;
+run;
+
+
+/* Model 3 Backward Elimination*/
+proc reg data=forward_out2_2 outest=backward_out1;
+model TARGET_WINS=TEAM_BATTING_1B TEAM_BATTING_2B TEAM_BATTING_3B log_TEAM_BATTING_HR TEAM_BATTING_BB TEAM_BATTING_HBP_IMP_IND TEAM_BATTING_SO_IMP TEAM_BATTING_SO_IMP_IND TEAM_BASERUN_SB_IMP TEAM_BASERUN_SB_IMP_IND TEAM_BASERUN_CS_IMP TEAM_BASERUN_CS_IMP_IND log_TEAM_FIELDING_E TEAM_FIELDING_DP_IMP TEAM_FIELDING_DP_IMP_IND TEAM_PITCHING_BB TEAM_PITCHING_H TEAM_PITCHING_SO_IMP TEAM_PITCHING_SO_IMP_IND
+/ selection=backward slentry=0.1 adjrsq aic bic mse rmse cp vif;
+output out=backward_out2
+ PREDICTED=PREDICT_MODEL4
+ RESIDUAL=RESID_MODEL4
+ RSTUDENT=RSTUDENT_MODEL4
+ COOKD=COOKD_Wins_MODEL4;
+run;
+
+
+Bingo Bonus:
+
+proc glm data=forward_out2_2;
+      model TARGET_WINS =  TEAM_BATTING_1B 
+ TEAM_BATTING_3B 
+ log_TEAM_BATTING_HR 
+ TEAM_BATTING_BB 
+ TEAM_BATTING_HBP_IMP_IND 
+ TEAM_BATTING_SO_IMP 
+ TEAM_BASERUN_SB_IMP 
+ TEAM_BASERUN_SB_IMP_IND 
+ TEAM_BASERUN_CS_IMP 
+ TEAM_BASERUN_CS_IMP_IND 
+ log_TEAM_FIELDING_E 
+ TEAM_FIELDING_DP_IMP 
+ TEAM_PITCHING_BB 
+ TEAM_PITCHING_H 
+ TEAM_PITCHING_SO_IMP_IND
+;
+   run;
+
+
+proc GENMOD data=forward_out2_2;
+      model TARGET_WINS =  TEAM_BATTING_1B 
+ TEAM_BATTING_3B 
+ log_TEAM_BATTING_HR 
+ TEAM_BATTING_BB 
+ TEAM_BATTING_HBP_IMP_IND 
+ TEAM_BATTING_SO_IMP 
+ TEAM_BASERUN_SB_IMP 
+ TEAM_BASERUN_SB_IMP_IND 
+ TEAM_BASERUN_CS_IMP 
+ TEAM_BASERUN_CS_IMP_IND 
+ log_TEAM_FIELDING_E 
+ TEAM_FIELDING_DP_IMP 
+ TEAM_PITCHING_BB 
+ TEAM_PITCHING_H 
+ TEAM_PITCHING_SO_IMP_IND
+;
+   run;
